@@ -1,0 +1,14 @@
+second-brain-pane-header =
+    .label = Second Brain
+second-brain-pane-sidenav =
+    .tooltiptext = Second Brain
+second-brain-menu-search =
+    .label = Search Second Brain…
+second-brain-menu-related =
+    .label = Find Related in Second Brain
+second-brain-menu-fix =
+    .label = Fix Missing PDFs…
+second-brain-section-search =
+    .tooltiptext = Search Second Brain for this paper
+second-brain-menu-find-pdf =
+    .label = Find PDF (free sources)

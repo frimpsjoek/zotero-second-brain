@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="chrome://global/skin/global.css"?>
+<?xml-stylesheet href="chrome://zotero-platform/content/zotero.css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        windowtype="second-brain:search" title="Second Brain" width="680" height="760">
+  <html:link rel="stylesheet" href="chrome://second-brain/content/search.css"/>
+  <script src="chrome://second-brain/content/search.js"/>
+  <html:div id="app">
+    <html:div class="bar">
+      <html:input id="query" type="search" placeholder="Search notes, papers, PDFs and images by words or meaning…" autofocus="true"/>
+      <html:select id="source">
+        <html:option value="">All</html:option>
+        <html:option value="zotero">Zotero</html:option>
+        <html:option value="personal">My notes</html:option>
+        <html:option value="Notion">Notion</html:option>
+        <html:option value="pdf">PDFs</html:option>
+        <html:option value="image">Images</html:option>
+        <html:option value="ai_notes">AI notes</html:option>
+      </html:select>
+    </html:div>
+    <html:div id="status" class="muted">Papers open in Zotero; notes, PDFs and images open in Obsidian.</html:div>
+    <html:div id="results" role="listbox"></html:div>
+  </html:div>
+</window>

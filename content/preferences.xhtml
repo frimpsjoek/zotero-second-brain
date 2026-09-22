@@ -1,0 +1,63 @@
+<vbox id="second-brain-prefs"
+	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" xmlns:html="http://www.w3.org/1999/xhtml">
+	<groupbox>
+		<label><html:h2>Paper notes</html:h2></label>
+		<html:p class="sb-pref-hint">Notes you write on a paper in Zotero are saved as Markdown as you type.</html:p>
+		<radiogroup id="sb-notes-in">
+			<radio value="auto" label="In Obsidian when Second Brain is running, otherwise in the folder below"/>
+			<radio value="local" label="Always in the folder below"/>
+		</radiogroup>
+		<hbox align="center" class="sb-pref-row">
+			<html:input id="sb-notes-folder" type="text" readonly="readonly" style="flex: 1"/>
+			<button id="sb-notes-choose" label="Choose…"/>
+			<button id="sb-notes-reveal" label="Show in Finder"/>
+		</hbox>
+		<html:p class="sb-pref-hint">Tip: choose a folder inside an Obsidian vault and the notes open there too, even without Second Brain.</html:p>
+	</groupbox>
+	<groupbox>
+		<label><html:h2>Colors</html:h2></label>
+		<html:p class="sb-pref-hint">By default the writing space uses Zotero's colors and follows light and dark mode.</html:p>
+		<html:div id="sb-colors" class="sb-pref-colors"/>
+	</groupbox>
+	<groupbox>
+		<label><html:h2>Search model</html:h2></label>
+		<html:p class="sb-pref-hint">Finds similar papers and searches your library by meaning, right here on this computer, without Obsidian or the Second Brain server. One download of about 45 MB (snowflake-arctic-embed-s); your library never leaves this computer.</html:p>
+		<hbox align="center" class="sb-pref-row">
+			<button id="sb-model-download" label="Download"/>
+			<button id="sb-model-remove" label="Remove"/>
+			<html:span id="sb-model-state" class="sb-pref-hint"/>
+		</hbox>
+	</groupbox>
+	<groupbox>
+		<label><html:h2>Finding free PDFs</html:h2></label>
+		<html:p class="sb-pref-hint">Unpaywall and OpenAlex don't have accounts to sign in to. Unpaywall asks for an email with each lookup, and OpenAlex answers faster with one. An OpenAlex API key (optional, free from openalex.org) raises its daily limit. Both stay on this computer and are sent only to those two services.</html:p>
+		<hbox align="center" class="sb-pref-row">
+			<label value="Email" style="min-width: 7em"/>
+			<html:input id="sb-email" type="email" placeholder="you@university.edu" style="flex: 1"/>
+		</hbox>
+		<hbox align="center" class="sb-pref-row">
+			<label value="OpenAlex API key" style="min-width: 7em"/>
+			<html:input id="sb-openalex-key" type="password" placeholder="optional" style="flex: 1"/>
+		</hbox>
+	</groupbox>
+	<groupbox>
+		<label><html:h2>Second Brain server</html:h2></label>
+		<html:p class="sb-pref-hint">Optional. With it, notes sync with Obsidian and you get similar papers, notes that cite a paper, full-text search and the drive search for lost PDFs.</html:p>
+		<hbox align="center" class="sb-pref-row">
+			<label value="Obsidian vault" style="min-width: 7em"/>
+			<html:input id="sb-vault" type="text" placeholder="Second-Brain" style="flex: 1"/>
+		</hbox>
+		<hbox align="center" class="sb-pref-row">
+			<label value="Server address" style="min-width: 7em"/>
+			<html:input id="sb-server" type="text" style="flex: 1"/>
+			<html:span id="sb-server-state" class="sb-pref-hint"/>
+		</hbox>
+	</groupbox>
+	<html:style>
+		.sb-pref-hint { color: var(--fill-secondary); margin: 2px 0 6px; }
+		.sb-pref-row { gap: 6px; margin: 4px 0; }
+		.sb-pref-colors { display: grid; grid-template-columns: max-content 44px max-content; gap: 8px 12px; align-items: center; }
+		.sb-pref-colors input[type=color] { width: 40px; height: 24px; padding: 0; border: 1px solid var(--fill-quinary); border-radius: 4px; }
+		.sb-pref-colors .is-default { color: var(--fill-tertiary); }
+	</html:style>
+</vbox>
