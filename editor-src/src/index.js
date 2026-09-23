@@ -91,6 +91,9 @@ function livePreview(options) {
 		}
 		const focused = view.hasFocus;
 		const isActive = (pos) => focused && active.has(state.doc.lineAt(pos).number);
+		// Like Obsidian: inline marks (*, **, `, ~~, links, citations) show only while the cursor is inside that
+		// piece of formatting; line marks (#, >) show while the cursor is on their line.
+		const touches = (a, b) => focused && state.selection.ranges.some((r) => r.from <= b && r.to >= a);
 		const decos = [];
 		const covered = []; // ranges replaced by widgets, so regex passes don't overlap tree decorations
 
@@ -116,19 +119,23 @@ function livePreview(options) {
 						}
 						return false;
 					}
-					if (isActive(node.from)) return;
 					if (name === "HeaderMark") {
+						if (isActive(node.from)) return;
 						const end = Math.min(node.to + 1, state.doc.lineAt(node.from).to);
 						decos.push(hide.range(node.from, end));
 					} else if (["EmphasisMark", "CodeMark", "StrikethroughMark", "QuoteMark"].includes(name)) {
 						if (name === "CodeMark" && node.node.parent?.name === "FencedCode") return;
+						const parent = node.node.parent;
+						if (name === "QuoteMark" ? isActive(node.from) : touches(parent?.from ?? node.from, parent?.to ?? node.to)) return;
 						let end = node.to;
 						if (name === "QuoteMark" && state.doc.sliceString(end, end + 1) === " ") end++;
 						decos.push(hide.range(node.from, end));
 					} else if (name === "ListMark") {
+						if (isActive(node.from)) return;
 						const text = state.doc.sliceString(node.from, node.to);
 						if (/^[-*+]$/.test(text)) decos.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to));
 					} else if (name === "Image") {
+						if (isActive(node.from)) return false;
 						const text = state.doc.sliceString(node.from, node.to);
 						const m = /^!\[([^\]]*)\]\(([^)\s]+)/.exec(text);
 						if (m) {
@@ -142,7 +149,7 @@ function livePreview(options) {
 						node.node.getChildren("LinkMark").forEach((c) => marks.push(c));
 						const url = node.node.getChild("URL");
 						// [@key] and [[note]] parse as links without a URL; the citation and wiki-link passes own them
-						if (!url) return false;
+						if (!url || touches(node.from, node.to)) return false;
 						if (marks.length >= 2) {
 							decos.push(hide.range(marks[0].from, marks[0].to));
 							decos.push(Decoration.mark({ class: "sb-cm-link", attributes: { "data-href": url ? state.doc.sliceString(url.from, url.to) : "" } })
@@ -171,7 +178,7 @@ function livePreview(options) {
 				covered.push([a, b]);
 			});
 			scan(WIKILINK, (m, a, b) => {
-				if (isActive(a)) { decos.push(Decoration.mark({ class: "sb-cm-wikilink" }).range(a, b)); covered.push([a, b]); return; }
+				if (touches(a, b)) { decos.push(Decoration.mark({ class: "sb-cm-wikilink" }).range(a, b)); covered.push([a, b]); return; }
 				const shown = m[2] ?? m[1];
 				const start = b - 2 - (m[2] ? m[2].length : m[1].length);
 				decos.push(hide.range(a, start));
@@ -182,7 +189,7 @@ function livePreview(options) {
 			scan(CITATION, (m, a, b) => {
 				const keys = [...m[1].matchAll(CITEKEY)].map((k) => k[1].replace(/[.,;:]+$/, ""));
 				if (!keys.length) return;
-				const inside = state.selection.ranges.some((r) => focused && r.from >= a && r.to <= b);
+				const inside = touches(a, b);
 				if (inside) {
 					decos.push(Decoration.mark({ class: "sb-cm-cite-raw" }).range(a, b));
 				} else {
@@ -191,7 +198,7 @@ function livePreview(options) {
 				covered.push([a, b]);
 			});
 			scan(HIGHLIGHT, (m, a, b) => {
-				if (isActive(a)) { decos.push(Decoration.mark({ class: "sb-cm-mark" }).range(a, b)); return; }
+				if (touches(a, b)) { decos.push(Decoration.mark({ class: "sb-cm-mark" }).range(a, b)); return; }
 				decos.push(hide.range(a, a + 2));
 				decos.push(Decoration.mark({ class: "sb-cm-mark" }).range(a + 2, b - 2));
 				decos.push(hide.range(b - 2, b));
@@ -342,6 +349,7 @@ export function create(parent, options) {
 			view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, selection: { anchor: head } });
 		},
 		focus: () => view.focus(),
+		select: (anchor, head = anchor) => view.dispatch({ selection: { anchor, head } }),
 		hasFocus: () => view.hasFocus,
 		insert,
 		bold: () => wrap(view, "**"),
