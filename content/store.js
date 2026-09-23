@@ -111,11 +111,13 @@ SecondBrain.LocalStore = class {
 		return { hash: SecondBrain.hashText(text), path, references: await this.sb.references(text) };
 	}
 
-	/** Once a note has moved into the vault, keep the local file out of the way but don't delete it. */
+	/** Once a note has moved into the vault, keep the local file out of the way but don't delete it. It goes to
+	 *  Zotero's data folder, never under the notes folder: that may sit inside the vault, where a second file
+	 *  with the same zotero-key would show up in Obsidian and could be taken for the paper's note. */
 	async retire(key) {
 		const path = await this.find(key);
 		if (!path) return;
-		const done = PathUtils.join(this.folder, "moved-to-obsidian");
+		const done = PathUtils.join(Zotero.DataDirectory.dir, "second-brain", "moved-to-obsidian");
 		await IOUtils.makeDirectory(done, { createAncestors: true });
 		await IOUtils.move(path, PathUtils.join(done, PathUtils.filename(path)));
 		this.paths.delete(key);

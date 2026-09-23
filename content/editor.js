@@ -251,6 +251,8 @@ SecondBrain.Editor = class {
 	async adoptLocalCopy(note) {
 		const local = await this.sb.local.load(this.item).catch(() => null);
 		if (!local?.path) return;
+		// a notes folder inside the vault: the server already treats this very file as the paper's note
+		if (note.path && local.path.replace(/\\/g, "/").endsWith("/" + note.path)) return;
 		if (local.text.trim() === note.text.trim()) return this.sb.local.retire(this.key);
 		if (!note.text.trim()) {
 			this.applying = true;
@@ -271,7 +273,7 @@ SecondBrain.Editor = class {
 				await this.flush(true);
 				if (!this.dirty) await this.sb.local.retire(this.key);
 			}),
-			this.button("Keep Obsidian's", "The offline copy is kept in the notes folder under moved-to-obsidian", async () => {
+			this.button("Keep Obsidian's", "The offline copy is kept in Zotero's data folder, under second-brain/moved-to-obsidian", async () => {
 				this.conflict.hidden = true;
 				await this.sb.local.retire(this.key);
 				this.setStatus(this.savedLabel());

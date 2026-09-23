@@ -54,8 +54,16 @@ SecondBrain.LocalIndex = class {
 	}
 
 	/** Start at launch if the model is already here; otherwise wait for the user to download it. */
+	/** At launch: load the saved vectors (enough for similar papers). The model itself only starts when it has
+	 *  work: reading new papers while the Second Brain server is off, or a search by meaning. While the server
+	 *  runs, it indexes the same library, so this one waits and catches up later instead of doubling the work. */
 	async start() {
-		if (await this.installed()) await this.open().catch((error) => this.fail(error));
+		if (!(await this.installed())) return;
+		this.installedFiles = true;
+		await this.readIndex();
+		if (this.keys.length) this.setState("ready", `${this.keys.length} papers`);
+		this.stale = true;
+		this.updateSoon();
 	}
 
 	fail(error) {
@@ -92,6 +100,8 @@ SecondBrain.LocalIndex = class {
 		} catch (error) {
 			return this.fail(error);
 		}
+		this.installedFiles = true;
+		this.setState("loading");
 		await this.open().catch((error) => this.fail(error));
 	}
 
@@ -118,13 +128,25 @@ SecondBrain.LocalIndex = class {
 		this.keys = [];
 		this.hashes = [];
 		this.vectors = new Float32Array(0);
+		this.index = null;
+		this.installedFiles = false;
 		this.setState("absent");
 	}
 
 	// ------------------------------------------------------------------ the engine page
 
 	async open() {
-		this.setState("loading");
+		await this.readIndex();
+		this.update().catch((error) => this.fail(error));
+	}
+
+	async ensureEngine() {
+		if (this.engine) return;
+		this.starting ??= this.openEngine().finally(() => { this.starting = null; });
+		await this.starting;
+	}
+
+	async openEngine() {
 		const resource = Services.io.getProtocolHandler("resource").QueryInterface(Ci.nsIResProtocolHandler);
 		resource.setSubstitution("second-brain-data", Services.io.newFileURI(Zotero.File.pathToFile(this.dir)));
 		const win = Zotero.getMainWindow();
@@ -139,9 +161,13 @@ SecondBrain.LocalIndex = class {
 		this.window = this.frame.contentWindow;
 		this.engine = this.window.SecondBrainEngine;
 		await this.engine.load("resource://second-brain-data/", 1);
-		await this.readIndex();
-		this.setState("indexing", "");
-		this.update().catch((error) => this.fail(error));
+	}
+
+	/** Stop the model's workers and free their memory; the vectors stay loaded. */
+	closeEngine() {
+		this.frame?.remove();
+		this.frame = null;
+		this.engine = null;
 	}
 
 	close() {
@@ -156,6 +182,7 @@ SecondBrain.LocalIndex = class {
 	}
 
 	async embed(texts, query = false) {
+		await this.ensureEngine();
 		const vectors = await this.engine.embed(Cu.cloneInto(texts, this.window), query);
 		return vectors.map((v) => Float32Array.from(v)); // copy out of the engine page's compartment
 	}
@@ -191,7 +218,7 @@ SecondBrain.LocalIndex = class {
 
 	/** Embed papers that are new or changed, drop ones that are gone. Runs in small batches so Zotero stays responsive. */
 	async update() {
-		if (this.updating || !this.engine) return;
+		if (this.updating || !this.installedFiles) return;
 		this.updating = true;
 		try {
 			const DIM = SecondBrain.LocalIndex.DIM;
@@ -216,11 +243,15 @@ SecondBrain.LocalIndex = class {
 			}
 			const changed = todo.length > 0 || keys.length !== this.keys.length;
 			todo.sort((a, b) => texts.get(keys[a]).length - texts.get(keys[b]).length); // batches of similar length pad less
+			if (todo.length) {
+				this.setState("indexing", `0 of ${todo.length} papers`);
+				await this.ensureEngine();
+			}
 			// a whole library is read by several workers at once, then it drops back to one for searching
 			const cores = Zotero.getMainWindow().navigator.hardwareConcurrency || 2;
-			if (todo.length > 100) await this.engine.resize(Math.max(1, Math.min(4, Math.floor(cores / 2))));
+			if (todo.length > 100) await this.engine?.resize(Math.max(1, Math.min(4, Math.floor(cores / 2))));
 			try {
-				const step = 8 * this.engine.size;
+				const step = 8 * (this.engine?.size ?? 1);
 				for (let n = 0; n < todo.length; n += step) {
 					const batch = todo.slice(n, n + step);
 					const out = await this.embed(batch.map((row) => texts.get(keys[row])));
@@ -229,6 +260,8 @@ SecondBrain.LocalIndex = class {
 				}
 			} finally {
 				await this.engine?.resize(1);
+				// with the server running, searches go to it; don't keep the model's memory for nothing
+				if (this.sb.online) this.closeEngine();
 			}
 			this.keys = keys;
 			this.hashes = hashes;
@@ -244,8 +277,14 @@ SecondBrain.LocalIndex = class {
 		}
 	}
 
+	/** Library changed: catch up now if the server is off, otherwise remember and catch up when it goes off. */
 	updateSoon() {
-		if (!this.engine) return;
+		if (!this.installedFiles) return;
+		if (this.sb.online && this.keys.length) {
+			this.stale = true;
+			return;
+		}
+		this.stale = false;
 		clearTimeout(this.updateTimer);
 		this.updateTimer = setTimeout(() => this.update().catch((error) => this.fail(error)), 15000);
 	}
@@ -286,7 +325,12 @@ SecondBrain.LocalIndex = class {
 		return order.map((i) => ({ key: this.keys[i], score: scores[i] }));
 	}
 
-	get ready() { return this.state === "ready" || (this.state === "indexing" && this.keys.length > 0 && !!this.index); }
+	get ready() { return this.keys.length > 0 && !!this.index && ["ready", "indexing", "loading"].includes(this.state); }
+
+	/** The server just went away: read whatever changed in the library meanwhile. */
+	serverGone() {
+		if (this.stale) this.updateSoon();
+	}
 
 	similar(key, limit = 10) {
 		const i = this.index?.get(key);

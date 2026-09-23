@@ -103,6 +103,7 @@ SecondBrain = {
 	setOnline(on) {
 		if (this.online === on) return;
 		this.online = on;
+		if (!on) this.localIndex?.serverGone();
 		Zotero.ItemTreeManager.refreshColumns?.();
 	},
 
