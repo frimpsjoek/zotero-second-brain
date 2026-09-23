@@ -2,8 +2,8 @@
 # Builds dist/second-brain-<version>.xpi and dist/update.json (the file Zotero checks for updates).
 set -e
 cd "$(dirname "$0")"
-(cd editor-src && npm install --silent && npm run build --silent)
-(cd engine-src && npm install --silent --ignore-scripts && npm run build --silent)
+(cd editor-src && npm ci --silent && npm run build --silent)
+(cd engine-src && npm ci --silent --ignore-scripts && npm run build --silent)
 version=$(node -p 'require("./manifest.json").version')
 mkdir -p dist
 rm -f "dist/second-brain-$version.xpi"

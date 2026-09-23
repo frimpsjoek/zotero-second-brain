@@ -1,0 +1,33 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            editor-src/package-lock.json
+            engine-src/package-lock.json
+      - name: Build the plugin
+        run: ./build.sh
+      - name: Syntax-check every script
+        run: for f in bootstrap.js content/*.js; do node --check "$f"; done
+      - name: Check the settings page is valid XML
+        run: python3 -c "import xml.dom.minidom as m; m.parse('content/preferences.xhtml')"
+      - name: Check update.json names this version
+        run: |
+          version=$(node -p 'require("./manifest.json").version')
+          node -e 'const u = require("./dist/update.json"); const v = Object.values(u.addons)[0].updates[0].version; if (v !== process.argv[1]) { console.error(`update.json says ${v}`); process.exit(1); }' "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: second-brain-xpi
+          path: dist/
