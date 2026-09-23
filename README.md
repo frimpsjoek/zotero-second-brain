@@ -34,9 +34,10 @@ Zotero checks this repository for updates.
 
 ## Unpaywall and OpenAlex
 
-Neither service has accounts. Unpaywall asks for an email address with each lookup, so the plugin uses it only
-after you enter one; OpenAlex answers faster with an email and allows more requests with a free API key. Both
-are sent only to those services.
+Add your own API keys in **Settings → Second Brain → Finding free PDFs** (a free OpenAlex key is at
+[openalex.org/settings/api](https://openalex.org/settings/api)); **Test keys** checks them. Without a key,
+Unpaywall needs your email instead and OpenAlex allows far fewer lookups a day. Keys and email are sent only to
+those services.
 
 ## Building
 

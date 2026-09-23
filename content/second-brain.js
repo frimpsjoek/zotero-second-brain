@@ -1044,13 +1044,23 @@ SecondBrain = {
 		return params.size ? join + params : "";
 	},
 
+	/** Unpaywall takes its own API key, or an email address when there's no key. */
+	unpaywallAuth() {
+		const params = new URLSearchParams();
+		const key = Zotero.Prefs.get("extensions.secondbrain.unpaywallKey", true);
+		const email = Zotero.Prefs.get("extensions.secondbrain.email", true);
+		if (key) params.set("api_key", key);
+		if (email) params.set("email", email);
+		return params.size ? String(params) : "";
+	},
+
 	/** Unpaywall's best open-access PDF for a DOI. Unpaywall needs an email with each request, so it's used only
 	 *  once one is set in the settings. */
 	async unpaywall(item) {
-		const email = Zotero.Prefs.get("extensions.secondbrain.email", true);
 		const doi = (item.getField("DOI") || item.getExtraField?.("DOI") || "").replace(/^https?:\/\/doi\.org\//i, "");
-		if (!email || !doi) return null;
-		const data = await this.json(`https://api.unpaywall.org/v2/${encodeURIComponent(doi)}?email=${encodeURIComponent(email)}`);
+		const auth = this.unpaywallAuth();
+		if (!auth || !doi) return null;
+		const data = await this.json(`https://api.unpaywall.org/v2/${encodeURIComponent(doi)}?${auth}`);
 		const locations = [data?.best_oa_location, ...(data?.oa_locations ?? [])];
 		return locations.find((l) => l?.url_for_pdf)?.url_for_pdf ?? null;
 	},

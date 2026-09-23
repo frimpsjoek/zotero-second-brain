@@ -54,11 +54,13 @@ var SecondBrainPrefs = {
 			grid.append(html("label", { textContent: label }), input, reset);
 		}
 
-		for (const [id, name] of [["sb-email", "email"], ["sb-openalex-key", "openalexKey"], ["sb-vault", "vault"]]) {
+		for (const [id, name] of [["sb-email", "email"], ["sb-openalex-key", "openalexKey"], ["sb-unpaywall-key", "unpaywallKey"], ["sb-vault", "vault"]]) {
 			const input = $(id);
 			input.value = this.pref(name) || "";
 			input.addEventListener("change", () => this.set(name, input.value.trim()));
 		}
+
+		$("sb-keys-test").addEventListener("command", () => this.testKeys(doc));
 
 		const index = Zotero.SecondBrain?.localIndex;
 		const state = $("sb-model-state");
@@ -114,6 +116,25 @@ var SecondBrainPrefs = {
 		const rgb = doc.defaultView.getComputedStyle(probe).color.match(/\d+(\.\d+)?/g)?.slice(0, 3).map(Number) ?? [128, 128, 128];
 		probe.remove();
 		return "#" + rgb.map((n) => Math.round(n).toString(16).padStart(2, "0")).join("");
+	},
+
+	/** One lookup of a known open-access paper on each service, so a wrong key shows up here and not mid-run. */
+	async testKeys(doc) {
+		const state = doc.getElementById("sb-keys-state");
+		for (const id of ["sb-email", "sb-openalex-key", "sb-unpaywall-key"]) doc.getElementById(id).dispatchEvent(new Event("change"));
+		const sb = Zotero.SecondBrain;
+		const doi = "10.1038/nature12373";
+		const probe = async (url) => {
+			const response = await Zotero.HTTP.request("GET", url, { timeout: 15000, successCodes: false, responseType: "json" });
+			if (response.status === 200) return "works ✓";
+			return response.response?.message || response.response?.error || (response.status ? `HTTP ${response.status}` : "no connection");
+		};
+		state.textContent = "Checking…";
+		const unpaywall = sb.unpaywallAuth()
+			? await probe(`https://api.unpaywall.org/v2/${doi}?${sb.unpaywallAuth()}`)
+			: "add a key or an email";
+		const openalex = await probe(`https://api.openalex.org/works/doi:${doi}?select=id${sb.openAlexAuth("&")}`);
+		state.textContent = `Unpaywall: ${unpaywall} · OpenAlex: ${this.pref("openalexKey") ? openalex : `${openalex} (no key: small daily limit)`}`;
 	},
 
 	async check(doc) {

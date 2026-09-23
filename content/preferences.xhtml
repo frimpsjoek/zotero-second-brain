@@ -30,14 +30,22 @@
 	</groupbox>
 	<groupbox>
 		<label><html:h2>Finding free PDFs</html:h2></label>
-		<html:p class="sb-pref-hint">Unpaywall and OpenAlex don't have accounts to sign in to. Unpaywall asks for an email with each lookup, and OpenAlex answers faster with one. An OpenAlex API key (optional, free from openalex.org) raises its daily limit. Both stay on this computer and are sent only to those two services.</html:p>
+		<html:p class="sb-pref-hint">Your own API keys for Unpaywall and OpenAlex (a free OpenAlex key is at openalex.org/settings/api). Without a key, Unpaywall needs your email instead, and OpenAlex allows far fewer lookups a day. Keys and email stay on this computer and are sent only to those services.</html:p>
 		<hbox align="center" class="sb-pref-row">
-			<label value="Email" style="min-width: 7em"/>
+			<label value="Email" style="min-width: 9em"/>
 			<html:input id="sb-email" type="email" placeholder="you@university.edu" style="flex: 1"/>
 		</hbox>
 		<hbox align="center" class="sb-pref-row">
-			<label value="OpenAlex API key" style="min-width: 7em"/>
-			<html:input id="sb-openalex-key" type="password" placeholder="optional" style="flex: 1"/>
+			<label value="OpenAlex API key" style="min-width: 9em"/>
+			<html:input id="sb-openalex-key" type="password" placeholder="api_key" style="flex: 1"/>
+		</hbox>
+		<hbox align="center" class="sb-pref-row">
+			<label value="Unpaywall API key" style="min-width: 9em"/>
+			<html:input id="sb-unpaywall-key" type="password" placeholder="api_key (or leave empty and use the email)" style="flex: 1"/>
+		</hbox>
+		<hbox align="center" class="sb-pref-row">
+			<button id="sb-keys-test" label="Test keys"/>
+			<html:span id="sb-keys-state" class="sb-pref-hint"/>
 		</hbox>
 	</groupbox>
 	<groupbox>
