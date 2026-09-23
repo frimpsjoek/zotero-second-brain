@@ -41,8 +41,9 @@ SecondBrain.Editor = class {
 		// Title: says plainly that this is the place to write
 		const head = this.el("div", "sb-ed-head");
 		const heading = this.el("div", "sb-ed-heading");
-		this.where = this.el("span", "", "");
-		heading.append(this.el("b", "", "✎ My notes"), this.where);
+		// the save status sits under the title, so the toolbar fits on one row in a narrow pane
+		this.status = this.el("span", "sb-ed-status", "Loading…");
+		heading.append(this.el("b", "", "✎ My notes"), this.status);
 		head.append(heading);
 		if (!this.tab) {
 			this.focusButton = this.button("", "Hide the other sections and the collections pane so the note gets the room", () => this.sb.setFocus(!this.sb.focusMode));
@@ -67,8 +68,7 @@ SecondBrain.Editor = class {
 		tool("@", "Cite a paper from your library", () => this.openCite(), "is-cite");
 		bar.append(tools);
 
-		this.status = this.el("span", "sb-ed-status", "Loading…");
-		bar.append(this.status, this.el("span", "sb-ed-spacer"));
+		bar.append(this.el("span", "sb-ed-spacer"));
 		this.autoQuote = this.button("", "New highlights you make are added to these notes as linked quotes",
 			() => this.sb.setAutoQuote(!this.sb.autoQuote), "sb-ed-toggle");
 		bar.append(this.autoQuote);
@@ -103,7 +103,7 @@ SecondBrain.Editor = class {
 		this.frame.className = "sb-ed-frame";
 		this.frame.setAttribute("src", "chrome://second-brain/content/note-frame.html");
 		this.surface.append(this.frame);
-		this.ready = new Promise((resolve) => this.frame.addEventListener("DOMContentLoaded", () => { try {
+		this.ready = new Promise((resolve, reject) => this.frame.addEventListener("DOMContentLoaded", () => { try {
 			const win = this.frame.contentWindow;
 			if (this.tab) win.document.body.classList.add("is-tab");
 			this.cm = win.SecondBrainCM.create(win.document.body, {
@@ -133,7 +133,7 @@ SecondBrain.Editor = class {
 			this.themeQuery.addEventListener("change", this.themeListener);
 			this.fit();
 			resolve();
-		} catch (error) { Zotero.logError(error); } }, { once: true }));
+		} catch (error) { Zotero.logError(error); reject(error); } }, { once: true }));
 
 		// Live from Zotero
 		this.highlights = this.el("div", "sb-doc-section");
@@ -286,9 +286,6 @@ SecondBrain.Editor = class {
 	}
 
 	showWhere() {
-		this.where.textContent = this.store.kind === "local"
-			? "Your writing space · saved on this computer as you type"
-			: "Your writing space · saved to Obsidian as you type";
 		this.obsidian.hidden = this.store.kind !== "obsidian" || !this.path;
 	}
 
@@ -301,6 +298,9 @@ SecondBrain.Editor = class {
 			this.cm.setText(note.text);
 			this.applying = false;
 		}
+		// a full-page note opens with the caret at the end, where new writing goes (and the first line, often an
+		// image, stays rendered instead of showing its Markdown)
+		if (this.tab && !this.loaded) this.cm.select(this.cm.getText().length);
 		this.loaded = true;
 		this.renderReferences(note.references ?? []);
 		this.markQuoted();
@@ -373,7 +373,8 @@ SecondBrain.Editor = class {
 
 	/** Edits made in Obsidian show up here while nothing is unsaved and the note isn't being typed in. */
 	async checkForChanges() {
-		if (!this.root.isConnected) return this.destroy();
+		// the pane closed (e.g. the panel beside a PDF): save what was typed before letting go
+		if (!this.root.isConnected) return this.flush().finally(() => this.destroy());
 		if (!this.cm || this.dirty || this.saving || this.doc.hidden || !this.conflict.hidden || this.cm.hasFocus()) return;
 		try {
 			const note = await this.store.load(this.item);

@@ -21,7 +21,7 @@ function start() {
 function call(worker, message) {
 	const id = ++next;
 	return new Promise((resolve, reject) => {
-		pending.set(id, { resolve, reject });
+		pending.set(id, { resolve, reject, worker });
 		worker.postMessage({ ...message, id });
 	});
 }
@@ -35,7 +35,12 @@ window.SecondBrainEngine = {
 	},
 
 	async resize(count) {
-		while (workers.length > count) workers.pop().terminate();
+		while (workers.length > count) {
+			const worker = workers.pop();
+			worker.terminate();
+			// a terminated worker never answers; fail its jobs instead of leaving them waiting
+			for (const [id, job] of pending) if (job.worker === worker) { pending.delete(id); job.reject(new Error("worker stopped")); }
+		}
 		const added = [];
 		while (workers.length + added.length < count) added.push(start());
 		await Promise.all(added.map((worker) => call(worker, { type: "load", base, dtype })));

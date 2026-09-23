@@ -30,7 +30,7 @@ SecondBrain.ObsidianStore = class {
 };
 
 SecondBrain.LocalStore = class {
-	constructor(sb) { this.sb = sb; this.kind = "local"; this.paths = new Map(); }
+	constructor(sb) { this.sb = sb; this.kind = "local"; this.paths = new Map(); this.queues = new Map(); }
 
 	get folder() {
 		return Zotero.Prefs.get("extensions.secondbrain.notesFolder", true)
@@ -78,7 +78,17 @@ SecondBrain.LocalStore = class {
 		return { text, hash: SecondBrain.hashText(text), path, references: await this.sb.references(text) };
 	}
 
-	async save(item, text, baseHash, force) {
+	/** Saves to one paper's file run one after another, so two editors (side pane and full page) can't both
+	 *  create it and have the second overwrite the first; the second then sees the file and gets a conflict. */
+	save(item, text, baseHash, force) {
+		const previous = this.queues.get(item.key) ?? Promise.resolve();
+		const next = previous.catch(() => {}).then(() => this.write(item, text, baseHash, force));
+		this.queues.set(item.key, next);
+		next.finally(() => { if (this.queues.get(item.key) === next) this.queues.delete(item.key); }).catch(() => {});
+		return next;
+	}
+
+	async write(item, text, baseHash, force) {
 		let path = await this.find(item.key);
 		let front;
 		if (path) {

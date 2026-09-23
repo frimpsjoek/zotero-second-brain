@@ -244,12 +244,31 @@ SecondBrain = {
 	renderOnce(body, item, setSectionSummary) {
 		const box = body.querySelector(".sb-body");
 		if (!box || !item || box.dataset.key === item.key) return;
+		this.pinOnce(body);
 		box.dataset.key = item.key;
 		box.replaceChildren(this.el(body.ownerDocument, "div", "sb-muted", "Looking in your notes…"));
 		this.renderSection(body, item, setSectionSummary).catch((error) => {
 			Zotero.logError(error);
 			delete box.dataset.key; // try again on the next render
 		});
+	},
+
+	/** With Focus off the note sits below Zotero's own sections. Pin it once (Zotero's "Pin Section"), so picking
+	 *  a paper scrolls to the note; if the user unpins it or pins something else, that choice stays. */
+	pinOnce(body) {
+		if (Zotero.Prefs.get("extensions.secondbrain.pinnedOnce", true)) return;
+		const details = body.closest("item-details");
+		if (!details || details.closest("#zotero-context-pane")) return;
+		Zotero.Prefs.set("extensions.secondbrain.pinnedOnce", true, true);
+		if (!details.pinnedPane) details.pinnedPane = this.paneID;
+	},
+
+	/** Search snippets from notes without their Markdown: images, embeds, comments, quote marks and link targets. */
+	plainSnippet(text) {
+		return text.replace(/%%[\s\S]*?%%/g, " ").replace(/!\[\[[^\]]*\]\]/g, " ").replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+			.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (m, a, b) => b || a)
+			.replace(/(^|\s)(>|-|\*)\s/g, " ").replace(/[\u{1F7E5}-\u{1F7EB}\u{2B1B}\u{2B1C}]/gu, "")
+			.replace(/\*\*|__|`|==/g, "").replace(/\s+/g, " ").trim();
 	},
 
 	async renderSection(body, item, setSectionSummary) {
@@ -578,7 +597,7 @@ SecondBrain = {
 		const page = this.el(win.document, "div", "sb-note-page");
 		scroller.append(page);
 		const head = this.el(win.document, "div", "sb-note-head");
-		head.append(this.el(win.document, "div", "sb-note-kicker", "Paper note · saved to Obsidian"),
+		head.append(this.el(win.document, "div", "sb-note-kicker", "Paper note"),
 			this.el(win.document, "h1", "sb-note-title", title));
 		const meta = [item.getField("firstCreator"), item.getField("year"), item.getField("publicationTitle")].filter(Boolean).join(" · ");
 		if (meta) head.append(this.el(win.document, "div", "sb-meta", meta));
@@ -851,7 +870,7 @@ SecondBrain = {
 				const text = this.el(doc, "div", "sb-row-text");
 				text.append(this.el(doc, "div", "sb-title", hit.title), this.el(doc, "div", "sb-meta", this.meta(hit)));
 				const snippet = hit.passages?.[0]?.snippet;
-				if (snippet) text.append(this.el(doc, "div", "sb-snippet", snippet.replace(/\*\*|__|`/g, "").replace(/\s+/g, " ")));
+				if (snippet) text.append(this.el(doc, "div", "sb-snippet", this.plainSnippet(snippet)));
 				row.append(this.el(doc, "span", "sb-badge", this.kind(hit.path)), text);
 				row.addEventListener("mousedown", (event) => { event.preventDefault(); openHit(hit); });
 				row.addEventListener("mousemove", () => { if (active !== n) select(n); });
@@ -1289,6 +1308,7 @@ SecondBrain = {
 			.sb-tool:hover { background: var(--material-background); color: inherit; }
 			.sb-tool.is-bold { font-weight: 700; } .sb-tool.is-italic { font-style: italic; font-family: Georgia, serif; }
 			.sb-tool.is-heading { font-weight: 700; } .sb-tool.is-cite { color: var(--accent-blue); font-weight: 600; }
+			.sb-ed:not(.is-tab) .sb-tool { min-width: 27px; height: 27px; padding: 0 5px; font-size: 14px; }
 			.sb-ed-status { font-size: 12px; color: var(--fill-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 			.sb-ed-status.is-error { color: var(--accent-red, #d33); }
 			.sb-ed-spacer { flex: 1; }
@@ -1395,7 +1415,7 @@ SecondBrain = {
 
 			/* the note tab: one centred column, like a document */
 			tab-content:has(> .sb-note-scroll) { display: flex; }
-			.sb-note-scroll { flex: 1; overflow-y: auto; height: 100%; }
+			.sb-note-scroll { flex: 1; overflow-y: auto; height: 100%; background: var(--material-background); color: var(--fill-primary); }
 			.sb-note-page { max-width: 760px; margin: 0 auto; padding: 32px 36px 80px; display: flex; flex-direction: column; gap: 16px; }
 			.sb-note-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--fill-secondary); }
 			.sb-note-title { margin: 4px 0 2px; font-size: 24px; font-weight: 650; line-height: 1.25; }

@@ -312,12 +312,22 @@ SecondBrain.Discover = class {
 				Zotero.logError(error);
 			}
 		}
+		// a lookup can save the item and still fail afterwards; don't make a second copy of it
+		if (!item && result.doi) item = await this.itemByDOI(result.doi);
 		if (!item) item = await this.create(result, collections);
 		if (result.pdf && !(await this.sb.hasWorkingPDF(item))) {
 			await this.sb.attachPDF(item, result.pdf, "Open Access PDF").catch((error) => Zotero.logError(error));
 		}
 		if (this.known) this.remember(this.known, item);
 		return item;
+	}
+
+	async itemByDOI(doi) {
+		const search = new Zotero.Search();
+		search.libraryID = Zotero.Libraries.userLibraryID;
+		search.addCondition("DOI", "is", doi);
+		const [id] = await search.search().catch(() => []);
+		return id ? Zotero.Items.get(id) : null;
 	}
 
 	/** Without a DOI or arXiv ID Zotero can look up, build the item from what the search returned. */

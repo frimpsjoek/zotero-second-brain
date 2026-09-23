@@ -203,7 +203,7 @@ var SecondBrainSearch = {
 			for (const passage of hit.passages ?? []) {
 				const p = el("div", "passage");
 				if (passage.heading) p.append(el("div", "heading", passage.heading.split(" > ").pop()));
-				p.append(el("div", "snippet", passage.snippet.replace(/\*\*|__|`/g, "").replace(/\s+/g, " ")));
+				p.append(el("div", "snippet", this.sb.plainSnippet(passage.snippet)));
 				row.append(p);
 			}
 			row.addEventListener("click", () => this.open(index));
