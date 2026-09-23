@@ -56,6 +56,18 @@ and email are sent only to those services.
 The search engine is [Transformers.js](https://github.com/huggingface/transformers.js) with ONNX Runtime Web,
 running `snowflake-arctic-embed-s` in a few web workers. See [THIRD_PARTY.md](THIRD_PARTY.md) for licenses.
 
+## Releasing
+
+GitHub Actions checks every push and pull request (build, syntax check, settings page, `update.json`). To publish a
+version, set `"version"` in `manifest.json`, commit, and push a matching tag:
+
+```sh
+git tag v0.15.5 && git push origin v0.15.5
+```
+
+The release workflow builds the plugin and publishes `second-brain-<version>.xpi` and `update.json`; Zotero picks up
+the update from there. It refuses a tag that doesn't match `manifest.json`.
+
 ## License
 
 MIT
