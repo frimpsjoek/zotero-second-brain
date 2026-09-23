@@ -20,6 +20,7 @@ var SecondBrainSearch = {
 		document.getElementById("mode-library").addEventListener("click", () => this.setMode("library"));
 		document.getElementById("mode-online").addEventListener("click", () => this.setMode("online"));
 		this.discover = new this.sb.Discover(this.sb);
+		this.buildSources();
 		if (args.related) this.showRelated(args.related);
 		else if (args.mode) this.setMode(args.mode, false);
 		else if (args.query) this.setQuery(args.query);
@@ -32,8 +33,36 @@ var SecondBrainSearch = {
 		this.search();
 	},
 
+	/** A checkbox per service (remembered), and Google Scholar as a link: it has no API to search from here. */
+	buildSources() {
+		const box = document.getElementById("sources");
+		const el = (tag, cls, text) => this.sb.el(document, tag, cls, text);
+		const chosen = new Set(this.discover.chosenSources());
+		box.append(el("span", "", "Search in:"));
+		for (const source of this.sb.Discover.SOURCES) {
+			const label = el("label");
+			const check = el("input");
+			check.type = "checkbox";
+			check.checked = chosen.has(source.id);
+			check.dataset.source = source.id;
+			check.addEventListener("change", () => {
+				const ids = [...box.querySelectorAll("input[data-source]")].filter((c) => c.checked).map((c) => c.dataset.source);
+				if (!ids.length) { check.checked = true; return; }
+				Zotero.Prefs.set("extensions.secondbrain.sources", JSON.stringify(ids), true);
+				if (this.input.value.trim()) this.search();
+			});
+			label.append(check, source.label);
+			box.append(label);
+		}
+		const scholar = el("button", "scholar", "Google Scholar ↗");
+		scholar.title = "Google Scholar has no API; this opens the same search in your browser";
+		scholar.addEventListener("click", () => Zotero.launchURL(`https://scholar.google.com/scholar?q=${encodeURIComponent(this.input.value.trim())}`));
+		box.append(scholar);
+	},
+
 	setMode(mode, run = true) {
 		this.mode = mode;
+		document.getElementById("sources").hidden = mode !== "online";
 		document.getElementById("mode-library").classList.toggle("is-on", mode === "library");
 		document.getElementById("mode-online").classList.toggle("is-on", mode !== "library");
 		this.source.hidden = mode !== "library";
@@ -75,7 +104,8 @@ var SecondBrainSearch = {
 		try {
 			const results = await this.discover.search(query);
 			if (seq !== this.seq) return;
-			this.status.textContent = results.length ? `${results.length} papers · Add saves one to your library (and the selected collection)` : "No papers found.";
+			const missed = results.failed.length ? ` · ${results.failed.join(", ")} didn't answer` : "";
+			this.status.textContent = (results.length ? `${results.length} papers · Add saves one to your library (and the selected collection)` : "No papers found.") + missed;
 			this.renderPapers([["", results]]);
 		} catch (error) {
 			if (seq === this.seq) this.status.textContent = `Couldn't search: ${error.message}`;
@@ -95,6 +125,7 @@ var SecondBrainSearch = {
 				const who = paper.authors.length > 2 ? `${paper.authors[0].split(" ").pop()} et al.` : paper.authors.map((a) => a.split(" ").pop()).join(" & ");
 				main.append(el("div", "meta", [who, paper.year, paper.venue, paper.cites ? `cited ${paper.cites}×` : "", paper.pdf ? "free PDF" : ""].filter(Boolean).join(" · ")));
 				if (paper.abstract) main.append(el("div", "abstract", paper.abstract));
+				if (paper.sources?.length) main.append(el("div", "found-in", `Found in ${paper.sources.join(", ")}`));
 				row.append(main);
 				if (paper.key) {
 					const have = el("span", "have", "In your library ✓");

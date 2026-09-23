@@ -1,6 +1,6 @@
 /* global Zotero, SecondBrain */
-// Papers that aren't in the library yet: search OpenAlex by meaning (keywords, then Semantic Scholar, as
-// fallbacks), or list what's around a paper (similar papers, the papers that cite it, its references), mark the
+// Papers that aren't in the library yet: search the services each user picks (OpenAlex by meaning, Semantic
+// Scholar, arXiv, Crossref, Europe PMC, bioRxiv/medRxiv, ChemRxiv) and merge them, or list what's around a paper (similar papers, the papers that cite it, its references), mark the
 // ones already in the library, and add the others with Zotero's own DOI/arXiv lookup.
 
 SecondBrain.Discover = class {
@@ -12,26 +12,149 @@ SecondBrain.Discover = class {
 
 	// ------------------------------------------------------------------ searching
 
-	/** OpenAlex's meaning-based search (a question or a topic in your own words works), then its keyword search,
-	 *  then Semantic Scholar's. */
-	async search(query, limit = 25) {
+	/** The services "Find new papers" can search; each user picks theirs (saved in extensions.secondbrain.sources).
+	 *  Google Scholar has no API, so the window links out to it instead. */
+	static SOURCES = [
+		{ id: "openalex", label: "OpenAlex", on: true },
+		{ id: "semanticscholar", label: "Semantic Scholar", on: true },
+		{ id: "arxiv", label: "arXiv", on: true },
+		{ id: "crossref", label: "Crossref", on: false },
+		{ id: "europepmc", label: "PubMed / Europe PMC", on: false },
+		{ id: "biorxiv", label: "bioRxiv / medRxiv", on: false },
+		{ id: "chemrxiv", label: "ChemRxiv", on: false },
+	];
+
+	static CHEMRXIV = "S4393918830"; // OpenAlex source id; ChemRxiv's own API refuses programs (HTTP 403)
+
+	chosenSources() {
 		try {
-			return this.mark(await this.semantic(query, limit));
-		} catch (error) {
-			Zotero.logError(error);
+			const saved = JSON.parse(Zotero.Prefs.get("extensions.secondbrain.sources", true) || "null");
+			if (Array.isArray(saved) && saved.length) return saved;
+		} catch (error) { /* fall back to the defaults */ }
+		return SecondBrain.Discover.SOURCES.filter((s) => s.on).map((s) => s.id);
+	}
+
+	/** Search the chosen services at once and merge: one paper found by several of them shows once, labeled
+	 *  with each. Results alternate between services so no single one fills the list. */
+	async search(query, sources = this.chosenSources(), perSource = 15) {
+		const runs = await Promise.allSettled(sources.map((id) => this.searchOne(id, query, perSource)));
+		const lists = runs.map((run, i) => {
+			if (run.status === "rejected") Zotero.logError(run.reason);
+			const label = SecondBrain.Discover.SOURCES.find((s) => s.id === sources[i])?.label ?? sources[i];
+			return run.status === "fulfilled" ? run.value.map((r) => ({ ...r, sources: [label] })) : [];
+		});
+		const failed = sources.filter((id, i) => runs[i].status === "rejected")
+			.map((id) => SecondBrain.Discover.SOURCES.find((s) => s.id === id)?.label ?? id);
+		const merged = [];
+		const seen = new Map();
+		for (let rank = 0; lists.some((list) => rank < list.length); rank++) {
+			for (const list of lists) {
+				const r = list[rank];
+				if (!r?.title) continue;
+				const keys = [r.doi && `doi:${r.doi.toLowerCase()}`, `title:${this.sb.normalizeTitle(r.title)}`].filter(Boolean);
+				const earlier = keys.map((k) => seen.get(k)).find(Boolean);
+				if (earlier) {
+					earlier.sources = [...new Set([...earlier.sources, ...r.sources])];
+					earlier.pdf ??= r.pdf;
+					earlier.doi ??= r.doi;
+					earlier.arxiv ??= r.arxiv;
+					earlier.pmid ??= r.pmid;
+					if (!earlier.abstract) earlier.abstract = r.abstract;
+					continue;
+				}
+				keys.forEach((k) => seen.set(k, r));
+				merged.push(r);
+			}
 		}
-		try {
-			const data = await this.openAlex(`/works?search=${encodeURIComponent(query)}&per_page=${limit}&select=${SecondBrain.Discover.FIELDS}`);
-			return this.mark(data.results.map((work) => this.fromOpenAlex(work)));
-		} catch (error) {
-			Zotero.logError(error);
-			const data = await this.sb.json(`https://api.semanticscholar.org/graph/v1/paper/search?limit=${limit}&query=${encodeURIComponent(query)}&fields=title,year,authors,venue,externalIds,citationCount,openAccessPdf,abstract`);
-			return this.mark((data?.data ?? []).map((paper) => this.fromSemanticScholar(paper)));
+		const results = await this.mark(merged);
+		results.failed = failed;
+		return results;
+	}
+
+	async searchOne(id, query, limit) {
+		switch (id) {
+			case "openalex":
+				return this.semantic(query, limit).catch(() => this.openAlex(`/works?search=${encodeURIComponent(query)}&per_page=${limit}&select=${SecondBrain.Discover.FIELDS}`)
+					.then((data) => data.results.map((work) => this.fromOpenAlex(work))));
+			case "chemrxiv": {
+				const filter = `&filter=primary_location.source.id:${SecondBrain.Discover.CHEMRXIV}`;
+				return this.semantic(query, limit, filter).catch(() => this.openAlex(`/works?search=${encodeURIComponent(query)}${filter}&per_page=${limit}&select=${SecondBrain.Discover.FIELDS}`)
+					.then((data) => data.results.map((work) => this.fromOpenAlex(work))));
+			}
+			case "semanticscholar": {
+				const data = await this.getJSON(`https://api.semanticscholar.org/graph/v1/paper/search?limit=${limit}&query=${encodeURIComponent(query)}&fields=title,year,authors,venue,externalIds,citationCount,openAccessPdf,abstract`);
+				return (data.data ?? []).map((paper) => this.fromSemanticScholar(paper));
+			}
+			case "arxiv": return this.arxiv(query, limit);
+			case "crossref": return this.crossref(query, limit);
+			case "europepmc": return this.europePMC(query, limit);
+			case "biorxiv": return this.europePMC(`(${query}) AND SRC:PPR AND (PUBLISHER:"bioRxiv" OR PUBLISHER:"medRxiv")`, limit);
+			default: return [];
 		}
 	}
 
-	async semantic(text, limit) {
-		const data = await this.openAlex(`/works?search.semantic=${encodeURIComponent(text.slice(0, 1200))}&per_page=${limit}&select=${SecondBrain.Discover.FIELDS}`);
+	async getJSON(url) {
+		const headers = {};
+		const s2 = Zotero.Prefs.get("extensions.secondbrain.semanticScholarKey", true);
+		if (s2 && url.startsWith("https://api.semanticscholar.org/")) headers["x-api-key"] = s2;
+		const response = await Zotero.HTTP.request("GET", url, { responseType: "json", timeout: 20000, successCodes: false, headers });
+		if (response.status === 429) throw new Error(`${new URL(url).host}: too many requests${url.includes("semanticscholar") && !s2 ? " (add a free Semantic Scholar key in settings)" : ""}`);
+		if (response.status !== 200 || !response.response) throw new Error(`${new URL(url).host}: HTTP ${response.status}`);
+		return response.response;
+	}
+
+	/** arXiv's own search: the meaningful words must all appear (its default ORs them), most relevant first.
+	 *  Common words are dropped and at most five kept, or a question-like query finds nothing. */
+	async arxiv(query, limit) {
+		const STOP = new Set("the and for with from into between about over under using use how what which why when does can are was were this that these those its their our your how via of in on to by at an as is be or not".split(" "));
+		const words = query.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)).slice(0, 5);
+		if (!words.length) return [];
+		const url = `https://export.arxiv.org/api/query?search_query=${words.map((w) => `all:${encodeURIComponent(w)}`).join("+AND+")}&max_results=${limit}&sortBy=relevance`;
+		const response = await Zotero.HTTP.request("GET", url, { timeout: 20000 });
+		const xml = new (Zotero.getMainWindow().DOMParser)().parseFromString(response.responseText, "application/xml");
+		const text = (node, tag) => node.getElementsByTagName(tag)[0]?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+		return [...xml.getElementsByTagName("entry")].map((entry) => {
+			const id = text(entry, "id").replace(/^https?:\/\/arxiv\.org\/abs\//, "").replace(/v\d+$/, "");
+			return {
+				id: `arXiv:${id}`, doi: text(entry, "arxiv:doi") || null, arxiv: id, pmid: null,
+				title: text(entry, "title"), authors: [...entry.getElementsByTagName("author")].map((a) => text(a, "name")),
+				year: text(entry, "published").slice(0, 4), venue: "arXiv", cites: 0,
+				pdf: `https://arxiv.org/pdf/${id}`, type: "preprint", abstract: text(entry, "summary"),
+			};
+		});
+	}
+
+	/** Crossref: nearly every DOI. Supplementary files have their own DOIs (…​.s001); those are left out. */
+	async crossref(query, limit) {
+		const email = Zotero.Prefs.get("extensions.secondbrain.email", true);
+		const types = ["journal-article", "posted-content", "proceedings-article", "book-chapter", "book"].map((t) => `type:${t}`).join(",");
+		const data = await this.getJSON(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=${limit}&filter=${types}${email ? `&mailto=${encodeURIComponent(email)}` : ""}`);
+		return (data.message?.items ?? []).filter((w) => w.title?.[0] && !/\.s\d+$/i.test(w.DOI)).map((w) => ({
+			id: `doi:${w.DOI}`, doi: w.DOI, arxiv: null, pmid: null,
+			title: w.title[0].replace(/<[^>]+>/g, ""),
+			authors: (w.author ?? []).map((a) => [a.given, a.family].filter(Boolean).join(" ") || a.name).filter(Boolean),
+			year: w.issued?.["date-parts"]?.[0]?.[0] ?? "", venue: w["container-title"]?.[0] ?? (w.type === "posted-content" ? "Preprint" : ""),
+			cites: w["is-referenced-by-count"] ?? 0, pdf: null,
+			type: w.type === "book" ? "book" : "article", abstract: (w.abstract ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+		}));
+	}
+
+	/** Europe PMC: PubMed, PubMed Central and preprints (bioRxiv, medRxiv…), with open-access PDFs when known. */
+	async europePMC(query, limit) {
+		const data = await this.getJSON(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}&format=json&resultType=core&pageSize=${limit}`);
+		return (data.resultList?.result ?? []).map((r) => ({
+			id: `${r.source}:${r.id}`, doi: r.doi ?? null, arxiv: null, pmid: r.pmid ?? null,
+			title: (r.title ?? "").replace(/<[^>]+>/g, "").replace(/\.$/, ""),
+			authors: (r.authorList?.author ?? []).map((a) => a.fullName).filter(Boolean),
+			year: r.pubYear ?? "", venue: r.journalInfo?.journal?.title ?? r.bookOrReportDetails?.publisher ?? (r.source === "PPR" ? "Preprint" : ""),
+			cites: r.citedByCount ?? 0,
+			pdf: (r.fullTextUrlList?.fullTextUrl ?? []).find((u) => u.documentStyle === "pdf" && /open|free/i.test(u.availability ?? ""))?.url ?? null,
+			type: r.source === "PPR" ? "preprint" : "article", abstract: (r.abstractText ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+		}));
+	}
+
+	async semantic(text, limit, filter = "") {
+		const data = await this.openAlex(`/works?search.semantic=${encodeURIComponent(text.slice(0, 1200))}${filter}&per_page=${limit}&select=${SecondBrain.Discover.FIELDS}`);
 		if (!data.results?.length) throw new Error("no semantic results");
 		return data.results.map((work) => this.fromOpenAlex(work));
 	}
@@ -98,6 +221,7 @@ SecondBrain.Discover = class {
 			?? (work.ids?.arxiv ? String(work.ids.arxiv).split("/").pop() : null);
 		return {
 			id: work.id,
+			pmid: work.ids?.pmid ? String(work.ids.pmid).split("/").pop() : null,
 			doi: (work.doi ?? "").replace(/^https?:\/\/doi\.org\//i, "") || null,
 			arxiv,
 			title: work.display_name ?? "",
@@ -114,6 +238,7 @@ SecondBrain.Discover = class {
 	fromSemanticScholar(paper) {
 		return {
 			id: paper.paperId,
+			pmid: paper.externalIds?.PubMed ?? null,
 			doi: paper.externalIds?.DOI ?? null,
 			arxiv: paper.externalIds?.ArXiv ?? null,
 			title: paper.title ?? "",
@@ -174,7 +299,7 @@ SecondBrain.Discover = class {
 		const collection = pane?.getSelectedCollection?.();
 		const collections = collection && collection.libraryID === libraryID ? [collection.id] : [];
 		let item = null;
-		for (const identifier of [result.doi && { DOI: result.doi }, result.arxiv && { arXiv: result.arxiv }].filter(Boolean)) {
+		for (const identifier of [result.doi && { DOI: result.doi }, result.arxiv && { arXiv: result.arxiv }, result.pmid && { PMID: result.pmid }].filter(Boolean)) {
 			try {
 				const translate = new Zotero.Translate.Search();
 				translate.setIdentifier(identifier);

@@ -11,6 +11,11 @@
 .abstract { font-size: 12px; opacity: .85; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .add { flex: none; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--fill-quarternary, #ccc); background: var(--material-button, ButtonFace); color: inherit; cursor: pointer; }
 .add:disabled { opacity: .6; cursor: default; }
+.sources { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 0 14px 8px; font-size: 12px; }
+.sources[hidden] { display: none; }
+.sources label { display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+.scholar { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--fill-quarternary, #ccc); background: transparent; color: inherit; cursor: pointer; margin-inline-start: auto; }
+.found-in { font-size: 10px; color: var(--fill-tertiary, GrayText); margin-top: 3px; }
 .have { flex: none; font-size: 12px; color: var(--accent-green, #3a9d4a); cursor: pointer; padding: 4px 0; }
 #query { flex: 1; padding: 6px 10px; font-size: 14px; border-radius: 6px; border: 1px solid var(--fill-quarternary, #ccc); background: var(--material-background, Field); color: inherit; }
 #source { border-radius: 6px; }

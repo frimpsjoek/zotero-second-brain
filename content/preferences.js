@@ -54,7 +54,7 @@ var SecondBrainPrefs = {
 			grid.append(html("label", { textContent: label }), input, reset);
 		}
 
-		for (const [id, name] of [["sb-email", "email"], ["sb-openalex-key", "openalexKey"], ["sb-unpaywall-key", "unpaywallKey"], ["sb-vault", "vault"]]) {
+		for (const [id, name] of [["sb-email", "email"], ["sb-openalex-key", "openalexKey"], ["sb-unpaywall-key", "unpaywallKey"], ["sb-s2-key", "semanticScholarKey"], ["sb-vault", "vault"]]) {
 			const input = $(id);
 			input.value = this.pref(name) || "";
 			input.addEventListener("change", () => this.set(name, input.value.trim()));
@@ -63,7 +63,8 @@ var SecondBrainPrefs = {
 		$("sb-keys-test").addEventListener("command", () => this.testKeys(doc));
 		for (const [id, url] of [["sb-open-openalex", "https://openalex.org/settings/api"],
 			["sb-open-openalex-docs", "https://help.openalex.org/api/authentication/"],
-			["sb-open-unpaywall", "https://unpaywall.org/products/api"]]) {
+			["sb-open-unpaywall", "https://unpaywall.org/products/api"],
+			["sb-open-s2", "https://www.semanticscholar.org/product/api#api-key-form"]]) {
 			$(id).addEventListener("command", () => Zotero.launchURL(url));
 		}
 
@@ -126,7 +127,7 @@ var SecondBrainPrefs = {
 	/** One lookup of a known open-access paper on each service, so a wrong key shows up here and not mid-run. */
 	async testKeys(doc) {
 		const state = doc.getElementById("sb-keys-state");
-		for (const id of ["sb-email", "sb-openalex-key", "sb-unpaywall-key"]) doc.getElementById(id).dispatchEvent(new Event("change"));
+		for (const id of ["sb-email", "sb-openalex-key", "sb-unpaywall-key", "sb-s2-key"]) doc.getElementById(id).dispatchEvent(new Event("change"));
 		const sb = Zotero.SecondBrain;
 		const doi = "10.1038/nature12373";
 		const probe = async (url) => {
@@ -139,7 +140,13 @@ var SecondBrainPrefs = {
 			? await probe(`https://api.unpaywall.org/v2/${doi}?${sb.unpaywallAuth()}`)
 			: "add a key or an email";
 		const openalex = await probe(`https://api.openalex.org/works/doi:${doi}?select=id${sb.openAlexAuth("&")}`);
-		state.textContent = `Unpaywall: ${unpaywall} · OpenAlex: ${this.pref("openalexKey") ? openalex : `${openalex} (no key: small daily limit)`}`;
+		let s2 = "no key";
+		if (this.pref("semanticScholarKey")) {
+			const response = await Zotero.HTTP.request("GET", `https://api.semanticscholar.org/graph/v1/paper/DOI:${doi}?fields=title`,
+				{ timeout: 15000, successCodes: false, headers: { "x-api-key": this.pref("semanticScholarKey") } });
+			s2 = response.status === 200 ? "works ✓" : response.status === 403 ? "key not accepted" : `HTTP ${response.status}`;
+		}
+		state.textContent = `Unpaywall: ${unpaywall} · OpenAlex: ${this.pref("openalexKey") ? openalex : `${openalex} (no key: small daily limit)`} · Semantic Scholar: ${s2}`;
 	},
 
 	async check(doc) {

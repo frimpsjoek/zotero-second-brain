@@ -8,7 +8,8 @@ A Zotero 7+ plugin for reading and writing about papers.
 - **Similar papers and search by meaning, on your computer.** Download the search model once (about 45 MB) from
   the plugin's settings. It reads the title and abstract of every paper in your library and shows how close other
   papers are to the one you're looking at. Nothing is sent anywhere.
-- **Find new papers.** Search every published paper (OpenAlex) in your own words, or open *Find Related Papers
+- **Find new papers.** Search the services you pick (OpenAlex, Semantic Scholar, arXiv, Crossref, PubMed / Europe
+  PMC, bioRxiv / medRxiv, ChemRxiv; Google Scholar opens in your browser, since it has no API) in your own words, or open *Find Related Papers
   Online* on a paper to see similar papers, the papers citing it, and its references. Papers you already have are
   marked; **+ Add** saves the others to Zotero (filled in from the DOI or arXiv ID, with a free PDF when there is one).
 - **Free PDFs.** Right-click papers → *Find PDF (free sources)* tries Unpaywall, arXiv, OpenAlex,
@@ -45,7 +46,10 @@ Each user sets up their own. The settings page has these steps with buttons that
 2. **Unpaywall** (free; no sign-up): type your email. Unpaywall now runs on OpenAlex data and also accepts a
    key, so you can try your OpenAlex key in **Unpaywall API key**; if **Test keys** says "Invalid api_key", clear
    it and the email is used.
-3. Press **Test keys**. Both should say "works ✓".
+3. **Semantic Scholar** (free; without a key it often answers "too many requests"): request a key with the form
+   at [semanticscholar.org/product/api](https://www.semanticscholar.org/product/api#api-key-form) and paste it into
+   **Semantic Scholar API key**.
+4. Press **Test keys**. Each should say "works ✓". arXiv, Crossref, Europe PMC, bioRxiv and ChemRxiv need no key.
 
 Nothing here is required: without keys the PDF finder still tries arXiv, Semantic Scholar and Europe PMC. Keys
 and email are sent only to those services.

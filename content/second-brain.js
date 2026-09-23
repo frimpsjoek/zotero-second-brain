@@ -1063,7 +1063,10 @@ SecondBrain = {
 	// ------------------------------------------------------------------ open-access sources
 
 	async json(url) {
-		const response = await Zotero.HTTP.request("GET", url, { responseType: "json", timeout: 30000, successCodes: false });
+		const headers = {};
+		const s2 = Zotero.Prefs.get("extensions.secondbrain.semanticScholarKey", true);
+		if (s2 && url.startsWith("https://api.semanticscholar.org/")) headers["x-api-key"] = s2;
+		const response = await Zotero.HTTP.request("GET", url, { responseType: "json", timeout: 30000, successCodes: false, headers });
 		return response.status === 200 ? response.response : null;
 	},
 

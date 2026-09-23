@@ -51,6 +51,15 @@
 			<hbox class="sb-pref-row">
 				<button id="sb-open-unpaywall" label="Unpaywall API page"/>
 			</hbox>
+			<html:p><html:b>Semantic Scholar</html:b> (free; without a key it often says "too many requests")</html:p>
+			<html:ol>
+				<html:li>Open the Semantic Scholar key form (button below), fill it in, and wait for the key by email.</html:li>
+				<html:li>Paste it into <html:b>Semantic Scholar API key</html:b> below.</html:li>
+			</html:ol>
+			<hbox class="sb-pref-row">
+				<button id="sb-open-s2" label="Semantic Scholar key form"/>
+			</hbox>
+			<html:p class="sb-pref-hint">arXiv, Crossref, Europe PMC (PubMed), bioRxiv and ChemRxiv need no key. Your email above makes Crossref faster.</html:p>
 			<html:p class="sb-pref-hint">Then press <html:b>Test keys</html:b>: each service should say "works ✓". Nothing here is required. Without keys the PDF finder still tries arXiv, Semantic Scholar and Europe PMC.</html:p>
 		</html:details>
 		<hbox align="center" class="sb-pref-row">
@@ -64,6 +73,10 @@
 		<hbox align="center" class="sb-pref-row">
 			<label value="Unpaywall API key" style="min-width: 9em"/>
 			<html:input id="sb-unpaywall-key" type="password" placeholder="api_key (or leave empty and use the email)" style="flex: 1"/>
+		</hbox>
+		<hbox align="center" class="sb-pref-row">
+			<label value="Semantic Scholar key" style="min-width: 9em"/>
+			<html:input id="sb-s2-key" type="password" placeholder="x-api-key (optional)" style="flex: 1"/>
 		</hbox>
 		<hbox align="center" class="sb-pref-row">
 			<button id="sb-keys-test" label="Test keys"/>
