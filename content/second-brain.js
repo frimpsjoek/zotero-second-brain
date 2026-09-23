@@ -87,10 +87,13 @@ SecondBrain = {
 		return (Zotero.Prefs.get("extensions.secondbrain.server", true) || "http://127.0.0.1:27182").replace(/\/+$/, "");
 	},
 
-	/** Notes go to the Obsidian vault while the Second Brain server runs, otherwise to the local folder. */
+	/** Notes go to the Obsidian vault while the Second Brain server runs, otherwise to the local folder. Until
+	 *  the server has been seen to be down, try it: at startup the first note opens before any check has
+	 *  answered, and guessing "down" there opened the empty local copy instead of the vault note. An editor
+	 *  that can't reach the server falls back to the local folder by itself. */
 	store() {
 		const where = Zotero.Prefs.get("extensions.secondbrain.notesIn", true) || "auto";
-		return where === "local" || !this.online ? this.local : this.obsidian;
+		return where === "local" || (this.checkedOnce && !this.online) ? this.local : this.obsidian;
 	},
 
 	isOffline(error) {
@@ -219,20 +222,33 @@ SecondBrain = {
 				setEnabled(!!item?.isRegularItem());
 				return true;
 			},
-			onRender: ({ body }) => {
-				const box = body.querySelector(".sb-body");
-				box.replaceChildren();
-				box.append(this.el(body.ownerDocument, "div", "sb-muted", "Looking in your notes…"));
-			},
-			onAsyncRender: async ({ body, item, setSectionSummary }) => {
-				await this.renderSection(body, item, setSectionSummary);
-			},
+			// Zotero calls onRender on every item change but onAsyncRender only when it sees the section scroll into
+			// view, and it can miss that; so the section starts itself from onRender, once per item. Re-renders for
+			// the same item (scrolling back into view) leave the open note alone.
+			onRender: ({ body, item, setSectionSummary }) => this.renderOnce(body, item, setSectionSummary),
+			onAsyncRender: ({ body, item, setSectionSummary }) => this.renderOnce(body, item, setSectionSummary),
 			sectionButtons: [{
 				type: "search",
 				icon: "chrome://zotero/skin/16/universal/magnifier.svg",
 				l10nID: "second-brain-section-search",
 				onClick: ({ item }) => this.openSearch(item?.getField("title") ?? ""),
+			}, {
+				type: "discover",
+				icon: "chrome://zotero/skin/16/universal/globe.svg",
+				l10nID: "second-brain-section-discover",
+				onClick: ({ item }) => this.findRelatedOnline(item),
 			}],
+		});
+	},
+
+	renderOnce(body, item, setSectionSummary) {
+		const box = body.querySelector(".sb-body");
+		if (!box || !item || box.dataset.key === item.key) return;
+		box.dataset.key = item.key;
+		box.replaceChildren(this.el(body.ownerDocument, "div", "sb-muted", "Looking in your notes…"));
+		this.renderSection(body, item, setSectionSummary).catch((error) => {
+			Zotero.logError(error);
+			delete box.dataset.key; // try again on the next render
 		});
 	},
 
@@ -259,6 +275,7 @@ SecondBrain = {
 			]);
 			this.setOnline(true);
 		} catch (error) {
+			if (box.dataset.key !== item.key) return;
 			if (!this.isOffline(error)) Zotero.logError(error);
 			this.setOnline(false);
 			this.relatedInZotero(box, item);
@@ -266,6 +283,7 @@ SecondBrain = {
 			setSectionSummary?.("");
 			return;
 		}
+		if (box.dataset.key !== item.key) return;
 		if (!related) {
 			box.append(this.el(doc, "div", "sb-muted", "This paper isn't in the index yet. New papers are added within a few minutes."));
 			return;
@@ -669,6 +687,27 @@ SecondBrain = {
 				},
 			}],
 		});
+		const discover = Zotero.MenuManager.registerMenu({
+			menuID: "second-brain-item-discover",
+			pluginID: this.id,
+			target: "main/library/item",
+			menus: [{
+				menuType: "menuitem",
+				l10nID: "second-brain-menu-discover",
+				onShowing: (event, context) => context.setVisible?.(context.items?.length === 1 && context.items[0].isRegularItem()),
+				onCommand: (event, context) => this.findRelatedOnline(context.items?.[0]),
+			}],
+		});
+		const findNew = Zotero.MenuManager.registerMenu({
+			menuID: "second-brain-tools-discover",
+			pluginID: this.id,
+			target: "main/menubar/tools",
+			menus: [{
+				menuType: "menuitem",
+				l10nID: "second-brain-menu-find-new",
+				onCommand: () => this.openSearch("", null, "online"),
+			}],
+		});
 		const findPDF = Zotero.MenuManager.registerMenu({
 			menuID: "second-brain-item-find-pdf",
 			pluginID: this.id,
@@ -702,19 +741,26 @@ SecondBrain = {
 				onCommand: () => this.fixMissingPDFs().catch((error) => Zotero.logError(error)),
 			}],
 		});
-		this.menuIDs = [related, findPDF, search, fix].filter(Boolean);
+		this.menuIDs = [related, discover, findNew, findPDF, search, fix].filter(Boolean);
 	},
 
-	openSearch(query) {
+	openSearch(query, related = null, mode = null) {
 		const win = Zotero.getMainWindow();
 		const existing = Services.wm.getMostRecentWindow("second-brain:search");
 		if (existing) {
-			existing.SecondBrainSearch?.setQuery(query);
+			if (related) existing.SecondBrainSearch?.showRelated(related);
+			else if (mode) existing.SecondBrainSearch?.setMode(mode);
+			else existing.SecondBrainSearch?.setQuery(query);
 			existing.focus();
 			return;
 		}
 		win.openDialog("chrome://second-brain/content/search.xhtml", "second-brain-search",
-			"chrome,resizable,centerscreen,width=680,height=760", { query, SecondBrain: this });
+			"chrome,resizable,centerscreen,width=720,height=820", { query, related, mode, SecondBrain: this });
+	},
+
+	/** Papers related to this one that you don't have yet (and the ones you do), from OpenAlex. */
+	findRelatedOnline(item) {
+		if (item?.isRegularItem()) this.openSearch("", item.key);
 	},
 
 	// ------------------------------------------------------------------ index status column

@@ -13,6 +13,7 @@ async function startup({ id, version, rootURI }) {
 	Services.scriptloader.loadSubScript(rootURI + "content/editor.js");
 	Services.scriptloader.loadSubScript(rootURI + "content/store.js");
 	Services.scriptloader.loadSubScript(rootURI + "content/local-index.js");
+	Services.scriptloader.loadSubScript(rootURI + "content/discover.js");
 	// chrome://second-brain/content/... for the search window
 	const aomStartup = Cc["@mozilla.org/addons/addon-manager-startup;1"].getService(Ci.amIAddonManagerStartup);
 	const manifestURI = Services.io.newURI(rootURI + "manifest.json");

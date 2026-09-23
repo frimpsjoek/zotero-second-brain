@@ -7,6 +7,10 @@
   <html:link rel="stylesheet" href="chrome://second-brain/content/search.css"/>
   <script src="chrome://second-brain/content/search.js"/>
   <html:div id="app">
+    <html:div class="modes" role="tablist">
+      <html:button id="mode-library" class="mode is-on" role="tab">My library</html:button>
+      <html:button id="mode-online" class="mode" role="tab">Find new papers</html:button>
+    </html:div>
     <html:div class="bar">
       <html:input id="query" type="search" placeholder="Search notes, papers, PDFs and images by words or meaning…" autofocus="true"/>
       <html:select id="source">

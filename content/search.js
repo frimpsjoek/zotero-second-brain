@@ -5,6 +5,7 @@ var SecondBrainSearch = {
 	selected: -1,
 	seq: 0,
 	timer: null,
+	mode: "library", // library | online | related
 
 	init() {
 		const args = window.arguments?.[0] ?? {};
@@ -16,13 +17,112 @@ var SecondBrainSearch = {
 		this.input.addEventListener("input", () => this.schedule());
 		this.source.addEventListener("change", () => this.search());
 		window.addEventListener("keydown", (e) => this.key(e));
-		if (args.query) this.setQuery(args.query);
+		document.getElementById("mode-library").addEventListener("click", () => this.setMode("library"));
+		document.getElementById("mode-online").addEventListener("click", () => this.setMode("online"));
+		this.discover = new this.sb.Discover(this.sb);
+		if (args.related) this.showRelated(args.related);
+		else if (args.mode) this.setMode(args.mode, false);
+		else if (args.query) this.setQuery(args.query);
 		this.input.focus();
 	},
 
 	setQuery(query) {
+		if (this.mode === "related") this.setMode("library", false);
 		this.input.value = query;
 		this.search();
+	},
+
+	setMode(mode, run = true) {
+		this.mode = mode;
+		document.getElementById("mode-library").classList.toggle("is-on", mode === "library");
+		document.getElementById("mode-online").classList.toggle("is-on", mode !== "library");
+		this.source.hidden = mode !== "library";
+		this.input.placeholder = mode === "library" ? "Search notes, papers, PDFs and images by words or meaning…"
+			: "Describe what you need, or search by title or author (all published papers, via OpenAlex)…";
+		this.hits = [];
+		this.results.replaceChildren();
+		if (run) this.search();
+		this.input.focus();
+	},
+
+	/** Everything related to a paper in the library that isn't in it yet (or is): OpenAlex's related works,
+	 *  papers citing it, and its references. */
+	async showRelated(key) {
+		const item = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, key);
+		if (!item) return;
+		this.setMode("related", false);
+		this.input.value = "";
+		this.input.placeholder = "Describe what you need, or search by title or author (all published papers, via OpenAlex)…";
+		const seq = ++this.seq;
+		this.status.textContent = `Finding papers related to “${item.getField("title")}”…`;
+		try {
+			const found = await this.discover.related(item);
+			if (seq !== this.seq) return;
+			if (!found) {
+				this.status.textContent = "OpenAlex doesn't know this paper, so there's nothing related to show. Try searching by topic above.";
+				return;
+			}
+			const total = found.groups.reduce((n, [, list]) => n + list.length, 0);
+			this.status.textContent = `${total} papers related to “${found.work.title}” · Add saves one to your library (and the selected collection)`;
+			this.renderPapers(found.groups);
+		} catch (error) {
+			if (seq === this.seq) this.status.textContent = `Couldn't reach OpenAlex: ${error.message}`;
+		}
+	},
+
+	async searchOnline(query, seq) {
+		this.status.textContent = "Searching published papers…";
+		try {
+			const results = await this.discover.search(query);
+			if (seq !== this.seq) return;
+			this.status.textContent = results.length ? `${results.length} papers · Add saves one to your library (and the selected collection)` : "No papers found.";
+			this.renderPapers([["", results]]);
+		} catch (error) {
+			if (seq === this.seq) this.status.textContent = `Couldn't search: ${error.message}`;
+		}
+	},
+
+	renderPapers(groups) {
+		const el = (tag, cls, text) => this.sb.el(document, tag, cls, text);
+		this.hits = [];
+		this.results.replaceChildren();
+		for (const [label, papers] of groups) {
+			if (label) this.results.append(el("div", "group", `${label} · ${papers.length}`));
+			for (const paper of papers) {
+				const row = el("div", "paper");
+				const main = el("div", "paper-main");
+				main.append(el("div", "title", paper.title));
+				const who = paper.authors.length > 2 ? `${paper.authors[0].split(" ").pop()} et al.` : paper.authors.map((a) => a.split(" ").pop()).join(" & ");
+				main.append(el("div", "meta", [who, paper.year, paper.venue, paper.cites ? `cited ${paper.cites}×` : "", paper.pdf ? "free PDF" : ""].filter(Boolean).join(" · ")));
+				if (paper.abstract) main.append(el("div", "abstract", paper.abstract));
+				row.append(main);
+				if (paper.key) {
+					const have = el("span", "have", "In your library ✓");
+					have.title = "Show it in the library";
+					have.addEventListener("click", () => this.sb.open("zotero/" + paper.key));
+					row.append(have);
+				} else {
+					const add = el("button", "add", "+ Add");
+					add.title = paper.doi ? `Add to Zotero (looked up by DOI ${paper.doi})` : "Add to Zotero";
+					add.addEventListener("click", async () => {
+						add.disabled = true;
+						add.textContent = "Adding…";
+						try {
+							const item = await this.discover.add(paper);
+							paper.key = item.key;
+							add.replaceWith(Object.assign(el("span", "have", "Added ✓"), { title: "Show it in the library", onclick: () => this.sb.open("zotero/" + item.key) }));
+						} catch (error) {
+							Zotero.logError(error);
+							add.disabled = false;
+							add.textContent = "Try again";
+							add.title = `Couldn't add: ${error.message}`;
+						}
+					});
+					row.append(add);
+				}
+				this.results.append(row);
+			}
+		}
 	},
 
 	schedule() {
@@ -39,6 +139,7 @@ var SecondBrainSearch = {
 			this.status.textContent = "Papers open in Zotero; notes, PDFs and images open in Obsidian.";
 			return;
 		}
+		if (this.mode !== "library") return this.searchOnline(query, seq);
 		this.status.textContent = "Searching…";
 		let hits;
 		try {
@@ -101,5 +202,6 @@ var SecondBrainSearch = {
 	},
 };
 
-var Zotero = Components.classes["@zotero.org/Zotero;1"].getService(Components.interfaces.nsISupports).wrappedJSObject;
+// Zotero 8+ no longer offers the Zotero object as an XPCOM service; take it from the window that opened this one.
+var Zotero = window.opener?.Zotero ?? Services.wm.getMostRecentWindow("navigator:browser")?.Zotero;
 window.addEventListener("load", () => SecondBrainSearch.init());

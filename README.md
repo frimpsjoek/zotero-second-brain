@@ -8,6 +8,9 @@ A Zotero 7+ plugin for reading and writing about papers.
 - **Similar papers and search by meaning, on your computer.** Download the search model once (about 45 MB) from
   the plugin's settings. It reads the title and abstract of every paper in your library and shows how close other
   papers are to the one you're looking at. Nothing is sent anywhere.
+- **Find new papers.** Search every published paper (OpenAlex) in your own words, or open *Find Related Papers
+  Online* on a paper to see similar papers, the papers citing it, and its references. Papers you already have are
+  marked; **+ Add** saves the others to Zotero (filled in from the DOI or arXiv ID, with a free PDF when there is one).
 - **Free PDFs.** Right-click papers → *Find PDF (free sources)* tries Unpaywall, arXiv, OpenAlex,
   Semantic Scholar and Europe PMC after Zotero's own resolvers.
 - **Focus.** One button hides the rest of the item pane and makes the note wider.
