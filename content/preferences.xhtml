@@ -30,7 +30,29 @@
 	</groupbox>
 	<groupbox>
 		<label><html:h2>Finding free PDFs</html:h2></label>
-		<html:p class="sb-pref-hint">Your own API keys for Unpaywall and OpenAlex (a free OpenAlex key is at openalex.org/settings/api). Without a key, Unpaywall needs your email instead, and OpenAlex allows far fewer lookups a day. Keys and email stay on this computer and are sent only to those services.</html:p>
+		<html:p class="sb-pref-hint">Use your own free keys so the PDF finder can ask Unpaywall and OpenAlex for open-access copies. Keys and email stay on this computer and are sent only to those two services.</html:p>
+		<html:details class="sb-pref-guide" open="open">
+			<html:summary>How to get your keys (about 2 minutes)</html:summary>
+			<html:p><html:b>OpenAlex</html:b> (free; a key gives you 10× more lookups a day)</html:p>
+			<html:ol>
+				<html:li>Open the OpenAlex key page (button below) and create a free account, or sign in. It takes about 30 seconds.</html:li>
+				<html:li>On <html:code>openalex.org/settings/api</html:code>, copy your API key.</html:li>
+				<html:li>Paste it into <html:b>OpenAlex API key</html:b> below.</html:li>
+			</html:ol>
+			<hbox class="sb-pref-row">
+				<button id="sb-open-openalex" label="Open OpenAlex key page"/>
+				<button id="sb-open-openalex-docs" label="OpenAlex help"/>
+			</hbox>
+			<html:p><html:b>Unpaywall</html:b> (free; no sign-up)</html:p>
+			<html:ol>
+				<html:li>Type your email in <html:b>Email</html:b> below. That is all Unpaywall asks for; use a real address you read, as their terms request.</html:li>
+				<html:li>Optional: Unpaywall now runs on OpenAlex's data and also accepts a key. Paste your OpenAlex key into <html:b>Unpaywall API key</html:b> and press <html:b>Test keys</html:b>. If it says "Invalid api_key", clear that field and the email is used instead.</html:li>
+			</html:ol>
+			<hbox class="sb-pref-row">
+				<button id="sb-open-unpaywall" label="Unpaywall API page"/>
+			</hbox>
+			<html:p class="sb-pref-hint">Then press <html:b>Test keys</html:b>: each service should say "works ✓". Nothing here is required. Without keys the PDF finder still tries arXiv, Semantic Scholar and Europe PMC.</html:p>
+		</html:details>
 		<hbox align="center" class="sb-pref-row">
 			<label value="Email" style="min-width: 9em"/>
 			<html:input id="sb-email" type="email" placeholder="you@university.edu" style="flex: 1"/>
@@ -67,5 +89,10 @@
 		.sb-pref-colors { display: grid; grid-template-columns: max-content 44px max-content; gap: 8px 12px; align-items: center; }
 		.sb-pref-colors input[type=color] { width: 40px; height: 24px; padding: 0; border: 1px solid var(--fill-quinary); border-radius: 4px; }
 		.sb-pref-colors .is-default { color: var(--fill-tertiary); }
+		.sb-pref-guide { margin: 4px 0 10px; padding: 8px 12px; border: 1px solid var(--fill-quinary); border-radius: 6px; }
+		.sb-pref-guide summary { cursor: pointer; font-weight: 600; }
+		.sb-pref-guide ol { margin: 4px 0 6px; padding-inline-start: 1.4em; }
+		.sb-pref-guide li { margin: 2px 0; }
+		.sb-pref-guide p { margin: 8px 0 2px; }
 	</html:style>
 </vbox>

@@ -32,12 +32,20 @@ Zotero checks this repository for updates.
 | Search model and index | `<Zotero data directory>/second-brain/model`, `runtime`, `index` (Settings → Remove deletes them) |
 | Settings | Zotero preferences, `extensions.secondbrain.*` |
 
-## Unpaywall and OpenAlex
+## Unpaywall and OpenAlex keys
 
-Add your own API keys in **Settings → Second Brain → Finding free PDFs** (a free OpenAlex key is at
-[openalex.org/settings/api](https://openalex.org/settings/api)); **Test keys** checks them. Without a key,
-Unpaywall needs your email instead and OpenAlex allows far fewer lookups a day. Keys and email are sent only to
-those services.
+Each user sets up their own. The settings page has these steps with buttons that open each page:
+
+1. **OpenAlex** (free; a key gives 10× more lookups a day): create an account at
+   [openalex.org](https://openalex.org), copy your key from
+   [openalex.org/settings/api](https://openalex.org/settings/api), and paste it into **OpenAlex API key**.
+2. **Unpaywall** (free; no sign-up): type your email. Unpaywall now runs on OpenAlex data and also accepts a
+   key, so you can try your OpenAlex key in **Unpaywall API key**; if **Test keys** says "Invalid api_key", clear
+   it and the email is used.
+3. Press **Test keys**. Both should say "works ✓".
+
+Nothing here is required: without keys the PDF finder still tries arXiv, Semantic Scholar and Europe PMC. Keys
+and email are sent only to those services.
 
 ## Building
 

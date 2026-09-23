@@ -61,6 +61,11 @@ var SecondBrainPrefs = {
 		}
 
 		$("sb-keys-test").addEventListener("command", () => this.testKeys(doc));
+		for (const [id, url] of [["sb-open-openalex", "https://openalex.org/settings/api"],
+			["sb-open-openalex-docs", "https://help.openalex.org/api/authentication/"],
+			["sb-open-unpaywall", "https://unpaywall.org/products/api"]]) {
+			$(id).addEventListener("command", () => Zotero.launchURL(url));
+		}
 
 		const index = Zotero.SecondBrain?.localIndex;
 		const state = $("sb-model-state");
